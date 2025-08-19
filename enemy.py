@@ -109,3 +109,53 @@ class TankEnemy(Enemy):
         self.speed = ENEMY_SPEED * 0.5
         self.texture = enemy_tank_texture
         self.damage = 5
+
+class Boss1Enemy(Enemy):
+    def __init__(self):
+        super().__init__()
+        self.health = ENEMY_MAX_HEALTH * 30
+        self.speed = ENEMY_SPEED * 0.4
+        self.texture = boss1_texture
+        self.damage = 15
+        self.base_x = 0
+        self.wave_amp = 200 
+
+    
+        self.wave_freq_x = 1.2
+        self.wave_freq_y = 0.8
+
+    def get_hitbox_size(self, scale):
+         base_xy = 180 
+         base_z  = 220  
+         s = max(0.1, min(1.0, scale))
+         return (int(base_xy * s), int(base_xy * s), int(base_z * s))
+
+    def get_pos(self):
+      
+        x = self.base_x + self.wave_amp * math.sin(self.wave_freq_x * self.t + self.wave_phase_x)
+        y = self.base_y + (self.wave_amp * 0.5) * math.sin(self.wave_freq_y * self.t + self.wave_phase_y)
+        return x, y, self.z
+
+class Boss2Enemy(Enemy):
+    def __init__(self):
+        super().__init__()
+        self.health = ENEMY_MAX_HEALTH * 35
+        self.speed = ENEMY_SPEED * 0.3
+        self.texture = boss2_texture
+        self.damage = 20
+        self.base_x = 0
+        self.wave_amp = 150  
+
+        self.wave_freq_x = 1.0
+        self.wave_freq_y = 0.7
+
+    def get_hitbox_size(self, scale):
+        base_xy = 180 
+        base_z  = 220  
+        s = max(0.1, min(1.0, scale))
+        return (int(base_xy * s), int(base_xy * s), int(base_z * s))
+
+    def get_pos(self):
+        x = self.base_x + self.wave_amp * math.sin(self.wave_freq_x * self.t + self.wave_phase_x)
+        y = self.base_y + (self.wave_amp * 0.5) * math.sin(self.wave_freq_y * self.t + self.wave_phase_y)
+        return x, y, self.z
