@@ -159,3 +159,28 @@ class Boss2Enemy(Enemy):
         x = self.base_x + self.wave_amp * math.sin(self.wave_freq_x * self.t + self.wave_phase_x)
         y = self.base_y + (self.wave_amp * 0.5) * math.sin(self.wave_freq_y * self.t + self.wave_phase_y)
         return x, y, self.z
+
+
+def draw_enemy(screen, enemy, camera_x, camera_y, horizon_screen_y):
+    x, y, z = enemy.get_pos()
+    screen_x, screen_y, scale = project(x, y, z, camera_x, camera_y, horizon_screen_y)
+    scale = max(0.1, min(1.0, scale))
+    enemy_w = int(enemy.texture.get_width() * scale)
+    enemy_h = int(enemy.texture.get_height() * scale)
+    enemy_img = pygame.transform.scale(enemy.texture, (enemy_w, enemy_h))
+    screen.blit(enemy_img, (screen_x - enemy_w // 2, screen_y - enemy_h // 2))
+    return x, y, z
+
+def draw_boss_health_bar(screen, enemy):
+    if isinstance(enemy, (Boss1Enemy, Boss2Enemy)):
+        current_width, _ = screen.get_size()
+        max_health = ENEMY_MAX_HEALTH * (30 if isinstance(enemy, Boss1Enemy) else 35)
+        health_percentage = max(0.0, min(1.0, enemy.health / max_health))
+
+        bar_width = int(current_width * 0.8)
+        bar_height = 20
+        bar_x = (current_width - bar_width) // 2
+        bar_y = 110
+
+        pygame.draw.rect(screen, (50, 50, 50), (bar_x, bar_y, bar_width, bar_height))
+        pygame.draw.rect(screen, (0, 255, 0), (bar_x, bar_y, int(bar_width * health_percentage), bar_height))
