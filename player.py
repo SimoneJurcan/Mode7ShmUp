@@ -92,3 +92,75 @@ class Player:
             self.fire_rate_timer = max(0.0, self.fire_rate_timer - dt)
             if self.fire_rate_timer == 0.0:
                 self.fire_rate_mult = 1.0
+
+   
+    def shoot(self, keys):
+        weapon = WEAPONS[self.current_weapon]
+
+        can_shoot = not (self.current_weapon == MACHINE_GUN and self.overheated)
+        if keys[pygame.K_SPACE] and self.bullet_timer <= 0.0 and can_shoot:
+            for _ in range(weapon['bullets']):
+                self.bullets.append({
+                    'x': self.x,
+                    'y': self.y,
+                    'z': 0.0,
+                    'spread_x': random.uniform(-BASE_SPREAD_VEL, BASE_SPREAD_VEL) * weapon['spread'],
+                    'damage': weapon['damage'],
+                    'speed': weapon['bullet_speed']
+                })
+            self.bullet_timer = weapon['cooldown'] * self.fire_rate_mult
+
+                        
+            if self.current_weapon == REVOLVER:
+                revolver_sfx.play()
+            elif self.current_weapon == SHOTGUN:
+                shotgun_sfx.play()
+            elif self.current_weapon == MACHINE_GUN:
+                minigun_sfx.play()
+
+
+
+
+            if self.current_weapon == MACHINE_GUN:
+                self.heat = min(self.overheat_threshold, self.heat + self.heat_per_shot)
+                if self.heat >= self.overheat_threshold:
+                    self.overheated = True
+
+    def update_bullets(self, dt, max_z):
+        for b in self.bullets:
+            b['z'] += b['speed'] * dt
+            b['x'] += b['spread_x'] * dt
+        self.cull_bullets(max_z)
+
+    def kill_bullet(self, bullet_dict):
+        
+        bullet_dict['dead'] = True
+
+    def cull_bullets(self, max_z):
+
+        self.bullets = [b for b in self.bullets if not b.get('dead') and b['z'] < max_z]
+
+  
+    def get_camera(self):
+        return self.x, self.y
+
+    def get_bullets(self):
+        
+        return tuple(self.bullets)
+
+    def apply_fire_rate(self, mult: float, duration: float, cap: float | None = None):
+       
+       
+        self.fire_rate_mult = min(self.fire_rate_mult, mult)
+      
+        self.fire_rate_timer += duration
+        if cap is not None:
+            self.fire_rate_timer = min(self.fire_rate_timer, cap)
+
+    def add_shield(self, duration: float, cap: float | None = None):
+    
+        self.shield_timer += duration
+        if cap is not None:
+            self.shield_timer = min(self.shield_timer, cap)
+
+
