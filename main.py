@@ -395,3 +395,24 @@ def main():
             screen_flash_timer = 0.2
             if player_health <= 0:
                 game_state = GAME_STATE_GAME_OVER
+
+       
+        for enemy, (x, y, z) in enemy_pos:
+            if not enemy.alive:
+                continue
+            _, _, scale = project(x, y, z, camera_x, camera_y, horizon_screen_y)
+            scale = max(0.1, min(1.0, scale))
+            hitbox_x, hitbox_y, hitbox_z = enemy.get_hitbox_size(scale)
+
+            for bullet in bullets:
+                dx = bullet['x'] - x
+                dy = bullet['y'] - y
+                dz = bullet['z'] - z
+                if abs(dx) < hitbox_x and abs(dy) < hitbox_y and abs(dz) < hitbox_z:
+                    enemy.health -= bullet['damage']
+                    player.kill_bullet(bullet)
+                    if enemy.health <= 0:
+                        enemy_hit_sfx.play()
+                        enemy.alive = False
+                        for _ in range(20):
+                            particles.append(Particle(x, y, z))
