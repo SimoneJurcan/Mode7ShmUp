@@ -352,3 +352,15 @@ def main():
             draw_end_screen(screen, wave, restart_btn, menu_btn, quit_btn_end, score=None)
             pygame.display.flip()
             continue
+
+ 
+        screen_flash_timer = max(0.0, screen_flash_timer - dt)
+        keys = pygame.key.get_pressed()
+        player.update(dt, keys)
+        player.shoot(keys)
+        player.update_bullets(dt, ENEMY_MAX_Z + 200)
+        camera_x, camera_y = player.get_camera()
+        bullets = player.get_bullets()
+
+        current_width, current_height = screen.get_size()
+        horizon_screen_y = current_height // 2 + 60 - int(camera_y * 0.2)
