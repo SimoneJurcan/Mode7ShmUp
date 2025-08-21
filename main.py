@@ -476,3 +476,22 @@ def main():
         
         pickups = [p for p in pickups if p.alive]
 
+
+      
+        if all(not e.alive for e in enemies):
+            wave += 1
+            enemies.clear()
+            if wave % 5 == 0:
+                if wave % 10 == 0:
+                    enemies.append(Boss2Enemy())
+                else:
+                    enemies.append(Boss1Enemy())
+            else:
+                for _ in range(wave + 2):
+                    if wave < 3:
+                        enemies.append(Enemy())
+                    elif wave < 6:
+                        enemies.append(random.choice([Enemy(), FastEnemy()]))
+                    else:
+                        enemies.append(random.choice([Enemy(), FastEnemy(), TankEnemy()]))
+
