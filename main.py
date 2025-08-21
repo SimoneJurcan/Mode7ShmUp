@@ -159,3 +159,94 @@ def draw_end_screen(screen, wave, restart_btn, menu_btn, quit_btn, score=None):
     restart_btn.draw(screen)
     menu_btn.draw(screen)
     quit_btn.draw(screen)
+
+def draw_pause_screen(screen):
+    w, h = screen.get_size()
+    title = FONT_64.render("PAUSED", True, (255, 255, 0))
+    screen.blit(title, (w // 2 - title.get_width() // 2, h // 2 - title.get_height() // 2))
+
+
+def draw_parallax_sky(horizon_screen_y, camera_x):
+    w, _ = screen.get_size()
+    sky_offset_x = -int(camera_x * 0.1) % w
+    sky_scaled = pygame.transform.smoothscale(sky_texture, (w, max(1, horizon_screen_y)))
+    screen.blit(sky_scaled, (sky_offset_x, 0))
+    screen.blit(sky_scaled, (sky_offset_x - w, 0))  
+
+def draw_bullet(bullet, camera_x, camera_y, horizon_screen_y):
+    screen_x, screen_y, scale = project(bullet['x'], bullet['y'], bullet['z'], camera_x, camera_y, horizon_screen_y)
+    r = max(2, int(6 * scale))
+    pygame.draw.circle(screen, (100, 255, 100), (screen_x, screen_y), r)
+    pygame.draw.circle(screen, (200, 255, 200), (screen_x, screen_y), r // 2)
+
+def draw_hud(player, player_health, wave):
+    w, h = screen.get_size()
+    player_text = FONT_32.render(f'Player HP: {player_health}', True, (0,255,0) if player_health > 15 else (255,0,0))
+    wave_text = FONT_32.render(f'Wave: {wave}', True, (255,255,0))
+    screen.blit(player_text, (30, 30))
+    screen.blit(wave_text, (30, 70))
+
+    icon = weapon_icons_128[player.current_weapon]
+    screen.blit(icon, (30, h - 158))
+
+    
+    if player.current_weapon == MACHINE_GUN:
+        heat_percentage = player.heat / player.max_heat
+        heat_color = (255, 100, 0) if not player.overheated else (255, 0, 0)
+        heat_bar_width = 128
+        heat_bar_height = 10
+        pygame.draw.rect(screen, (50,50,50), (30, h - 178, heat_bar_width, heat_bar_height))
+        pygame.draw.rect(screen, heat_color, (30, h - 178, int(heat_bar_width * heat_percentage), heat_bar_height))
+
+    x0 = 30 + 128 + 16
+    y0 = h - 158
+    bar_w, bar_h = 160, 12
+
+    shield_t = getattr(player, "shield_timer", 0.0)
+    if shield_t > 0.0:
+   
+        shield_full = max(6.0, shield_t)
+        ratio = min(1.0, shield_t / shield_full)
+        pygame.draw.rect(screen, (30,30,30), (x0, y0, bar_w, bar_h))
+        pygame.draw.rect(screen, (80, 180, 255), (x0, y0, int(bar_w * ratio), bar_h))
+
+  
+    fr_t = getattr(player, "fire_rate_timer", 0.0)
+    if fr_t > 0.0:
+        fr_full = max(6.0, fr_t)
+        ratio = min(1.0, fr_t / fr_full)
+        pygame.draw.rect(screen, (30,30,30), (x0, y0 + bar_h + 6, bar_w, bar_h))
+        pygame.draw.rect(screen, (255, 180, 60), (x0, y0 + bar_h + 6, int(bar_w * ratio), bar_h))
+
+
+def draw_damage_flash(timer):
+    if timer > 0:
+        w, h = screen.get_size()
+        alpha = int(255 * (timer / 0.2))
+        flash_surface = pygame.Surface((w, h), pygame.SRCALPHA)
+        flash_surface.fill((255, 0, 0, alpha))
+        screen.blit(flash_surface, (0, 0))
+
+def draw_fog_gradient(horizon_screen_y):
+    w, _ = screen.get_size()
+    fog_height = 120
+    fog_surface = pygame.Surface((w, fog_height), pygame.SRCALPHA)
+    fog_color = (230, 230, 240)
+    for y in range(fog_height):
+        distance_from_center = abs(y - fog_height // 2)
+        alpha = int(255 * (1 - (distance_from_center / (fog_height // 2)))**1.5)
+        color = (*fog_color, alpha)
+        pygame.draw.line(fog_surface, color, (0, y), (w, y))
+    screen.blit(fog_surface, (0, horizon_screen_y - fog_height // 2))
+
+def draw_particle(p, camera_x, camera_y, horizon_screen_y):
+    screen_x, screen_y, scale = project(p.x, p.y, p.z, camera_x, camera_y, horizon_screen_y)
+    if scale > 0:
+        radius = max(1, int(4 * scale * (p.lifetime / 0.6)))
+        pygame.draw.circle(screen, p.color, (screen_x, screen_y), radius)
+
+
+GAME_STATE_MENU = 'MENU'
+GAME_STATE_PLAYING = 'PLAYING'
+GAME_STATE_PAUSED = 'PAUSED'
+GAME_STATE_GAME_OVER = 'GAME_OVER'
