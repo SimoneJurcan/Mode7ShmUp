@@ -416,3 +416,12 @@ def main():
                         enemy.alive = False
                         for _ in range(20):
                             particles.append(Particle(x, y, z))
+
+                   
+                        drop_roll = random.random()
+                        if drop_roll < 0.10:  
+                            pickups.append(Pickup(x, y, z, HEALTH, amount=8))
+                        elif drop_roll < 0.16:  
+                            pickups.append(Pickup(x, y, z, SHIELD, duration=6.0))
+                        elif drop_roll < 0.22:  
+                            pickups.append(Pickup(x, y, z, FIRERATE, duration=6.0))
