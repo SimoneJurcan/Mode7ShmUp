@@ -250,3 +250,105 @@ GAME_STATE_MENU = 'MENU'
 GAME_STATE_PLAYING = 'PLAYING'
 GAME_STATE_PAUSED = 'PAUSED'
 GAME_STATE_GAME_OVER = 'GAME_OVER'
+
+def main():
+    global screen
+    game_state = GAME_STATE_MENU
+
+    def reset_game():
+        nonlocal player, player_health, damage_timer, screen_flash_timer, wave, enemies, regen_timer, regen_tick_timer, particles, pickups
+        player = Player(speed=1000, y_speed=550) 
+        player_health = PLAYER_MAX_HEALTH
+        damage_timer = 0.0
+        screen_flash_timer = 0.0
+        wave = 1
+        enemies = [Enemy() for _ in range(wave + 2)]
+        regen_timer = 0.0
+        regen_tick_timer = 0.0
+        particles = []
+        pickups = [] 
+
+  
+    player = Player(speed=1000, y_speed=550)
+    player_health = PLAYER_MAX_HEALTH
+    damage_timer = 0.0
+    screen_flash_timer = 0.0
+    wave = 1
+    enemies = []
+    particles = []
+    pickups = []  
+    regen_timer = 0.0
+    regen_tick_timer = 0.0
+
+    while True:
+        dt = clock.tick(60) / 1000.0
+        w, h = screen.get_size()
+
+        start_btn = quit_btn = None
+        restart_btn = menu_btn = quit_btn_end = None
+        if game_state == GAME_STATE_MENU:
+            start_btn, quit_btn = make_start_buttons(w, h)
+        elif game_state == GAME_STATE_GAME_OVER:
+            restart_btn, menu_btn, quit_btn_end = make_end_buttons(w, h)
+
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); sys.exit()
+            if event.type == pygame.VIDEORESIZE:
+                new_width, new_height = event.size
+                screen = pygame.display.set_mode((new_width, new_height), pygame.RESIZABLE)
+
+   
+            if game_state == GAME_STATE_MENU:
+                if start_btn and start_btn.clicked(event):
+                    reset_game()
+                    game_state = GAME_STATE_PLAYING
+                elif quit_btn and quit_btn.clicked(event):
+                    pygame.quit(); sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        reset_game(); game_state = GAME_STATE_PLAYING
+                    elif event.key == pygame.K_ESCAPE:
+                        pygame.quit(); sys.exit()
+
+       
+            elif game_state == GAME_STATE_PLAYING:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+                    game_state = GAME_STATE_PAUSED
+
+          
+            elif game_state == GAME_STATE_PAUSED:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
+                    game_state = GAME_STATE_PLAYING
+
+            elif game_state == GAME_STATE_GAME_OVER:
+                if restart_btn and restart_btn.clicked(event):
+                    reset_game(); game_state = GAME_STATE_PLAYING
+                elif menu_btn and menu_btn.clicked(event):
+                    game_state = GAME_STATE_MENU
+                elif quit_btn_end and quit_btn_end.clicked(event):
+                    pygame.quit(); sys.exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        reset_game(); game_state = GAME_STATE_PLAYING
+                    elif event.key == pygame.K_m:
+                        game_state = GAME_STATE_MENU
+                    elif event.key == pygame.K_ESCAPE:
+                        pygame.quit(); sys.exit()
+
+        
+        if game_state == GAME_STATE_MENU:
+            draw_start_screen(screen, start_btn, quit_btn)
+            pygame.display.flip()
+            continue
+
+        if game_state == GAME_STATE_PAUSED:
+            draw_pause_screen(screen)
+            pygame.display.flip()
+            continue
+
+        if game_state == GAME_STATE_GAME_OVER:
+            draw_end_screen(screen, wave, restart_btn, menu_btn, quit_btn_end, score=None)
+            pygame.display.flip()
+            continue
