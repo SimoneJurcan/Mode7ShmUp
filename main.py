@@ -495,3 +495,65 @@ def main():
                     else:
                         enemies.append(random.choice([Enemy(), FastEnemy(), TankEnemy()]))
 
+    
+        for p in particles:
+            p.update(dt)
+        particles = [p for p in particles if p.lifetime > 0]
+
+     
+        enemies.sort(key=lambda e: e.z, reverse=True)
+
+        
+        screen.fill((0, 0, 0))
+        cam_x = camera_x
+        cam_y = camera_y
+
+        draw_parallax_sky(horizon_screen_y, cam_x)
+        render_mode7(screen, ground_texture, cam_x, cam_y, 0.0, horizon_screen_y)
+        draw_fog_gradient(horizon_screen_y)
+
+        for enemy in enemies:
+            if enemy.alive:
+                draw_enemy(screen, enemy, cam_x, cam_y, horizon_screen_y)
+
+       
+        boss = next((e for e in enemies if e.alive and isinstance(e, (Boss1Enemy, Boss2Enemy))), None)
+        if boss:
+            draw_boss_health_bar(screen, boss)
+
+       
+        for pu in pickups:
+            pu.draw(screen, cam_x, cam_y, horizon_screen_y)
+
+        for bullet in bullets:
+            draw_bullet(bullet, camera_x, camera_y, horizon_screen_y)
+
+        draw_hud(player, player_health, wave)
+        draw_damage_flash(screen_flash_timer)
+
+     
+        for p in particles:
+            draw_particle(p, cam_x, cam_y, horizon_screen_y)
+
+        pygame.display.flip()
+
+
+class Particle:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.vx = random.uniform(-100, 100)
+        self.vy = random.uniform(-100, 100)
+        self.vz = random.uniform(50, 150)
+        self.lifetime = random.uniform(0.3, 0.6)
+        self.color = random.choice([(255,100,0), (255,200,0), (200,50,0)])
+
+    def update(self, dt):
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.z += self.vz * dt
+        self.lifetime -= dt
+
+if __name__ == '__main__':
+    main()
