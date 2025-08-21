@@ -364,3 +364,12 @@ def main():
 
         current_width, current_height = screen.get_size()
         horizon_screen_y = current_height // 2 + 60 - int(camera_y * 0.2)
+
+      
+        regen_timer = max(0.0, regen_timer - dt)
+        regen_tick_timer += dt
+        if regen_timer <= 0 and regen_tick_timer >= HEALTH_REGEN_INTERVAL:
+            if player_health < PLAYER_MAX_HEALTH:
+                player_health += HEALTH_REGEN_AMOUNT
+                player_health = min(player_health, PLAYER_MAX_HEALTH)
+            regen_tick_timer = 0.0
