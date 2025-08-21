@@ -373,3 +373,25 @@ def main():
                 player_health += HEALTH_REGEN_AMOUNT
                 player_health = min(player_health, PLAYER_MAX_HEALTH)
             regen_tick_timer = 0.0
+
+   
+        enemy_pos = [(e, e.get_pos()) for e in enemies if e.alive]
+
+      
+        collided = []
+        for enemy, (_, _, z) in enemy_pos:
+            if z < CONTACT_Z:
+                enemy.alive = False
+                collided.append(enemy)
+
+        if collided:
+            total_damage = sum(e.damage for e in collided)
+         
+            if getattr(player, "shield_timer", 0.0) > 0.0:
+                total_damage = 0
+            player_health -= total_damage
+            regen_timer = REGEN_COOLDOWN
+            player_hit_sfx.play()  
+            screen_flash_timer = 0.2
+            if player_health <= 0:
+                game_state = GAME_STATE_GAME_OVER
