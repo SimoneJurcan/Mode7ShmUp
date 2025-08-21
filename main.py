@@ -425,3 +425,54 @@ def main():
                             pickups.append(Pickup(x, y, z, SHIELD, duration=6.0))
                         elif drop_roll < 0.22:  
                             pickups.append(Pickup(x, y, z, FIRERATE, duration=6.0))
+
+        
+        player.cull_bullets(ENEMY_MAX_Z + 200)
+
+      
+        for enemy in enemies:
+            if enemy.alive:
+                enemy.update(dt)
+
+   
+        for item in pickups:
+            if not item.alive:
+                continue
+
+            item.update(dt)
+
+       
+            sx, sy, s = project(item.x, item.y, item.z, camera_x, camera_y, horizon_screen_y)
+            px, py, _ = project(player.x, player.y, item.z, camera_x, camera_y, horizon_screen_y)
+
+            dx = sx - px
+            dy = sy - py
+            dist = (dx*dx + dy*dy) ** 0.5
+            if dist < 200:  
+                pull = 480.0 * dt
+                if dist > 1e-3:
+                    item.vx += (px - sx) / dist * pull
+                    item.vy += (py - sy) / dist * pull
+
+           
+            radius_screen = max(40, int(64 * s))  
+            hit_screen = (dx*dx + dy*dy) <= (radius_screen * radius_screen)
+
+           
+            wx = abs(item.x - player.x)
+            wy = abs(item.y - player.y)
+            wz_ok = item.z < (CONTACT_Z + 120)  
+            hit_world = (wx < 130 and wy < 130 and wz_ok)
+
+            if hit_screen or hit_world:
+                player_health = item.apply(player, player_health, PLAYER_MAX_HEALTH)
+                item.alive = False
+                continue  
+
+       
+            if item.z < 20:
+                item.alive = False
+
+        
+        pickups = [p for p in pickups if p.alive]
+
