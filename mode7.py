@@ -3,20 +3,27 @@ import numpy as np
 import math
 from settings import WIDTH, HEIGHT, FOCAL_LEN, SCALE  
 
-def project(x, y, z, camera_x, camera_y, horizon_screen_y):
+
+def project(x, y, z, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs=0.0):
     rel_x = x - camera_x
     rel_y = y - camera_y
-    rel_z = max(0.1, z)  
+    rel_z = max(0.1, z)
+    rel_z = max(0.1, z - forward_ofs)
+
+    ca = math.cos(-camera_angle)
+    sa = math.sin(-camera_angle)
+    rx = rel_x * ca - rel_y * sa
+    ry = rel_x * sa + rel_y * ca
 
     scale = FOCAL_LEN / rel_z
 
-   
     surf = pygame.display.get_surface()
     w = surf.get_width() if surf else WIDTH
 
-    screen_x = w // 2 + int(rel_x * scale)
-    screen_y = horizon_screen_y - int(rel_y * scale) - int(scale * 20)  
+    screen_x = w // 2 + int(rx * scale)
+    screen_y = horizon_screen_y - int(ry * scale) - int(scale * 20)
     return screen_x, screen_y, scale
+
 
 def render_mode7(surface, texture, camera_x, camera_y, camera_angle, horizon_screen_y):
     w, h = surface.get_size()

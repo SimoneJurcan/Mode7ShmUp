@@ -1,4 +1,5 @@
 import pygame
+import math
 import sys
 import random
 from settings import WIDTH, HEIGHT
@@ -7,29 +8,25 @@ from player import Player, REVOLVER, SHOTGUN, MACHINE_GUN
 from enemy import (
     ENEMY_MAX_Z,
     Enemy, FastEnemy, TankEnemy, Boss1Enemy, Boss2Enemy,
-    init_enemy_assets, draw_enemy, draw_boss_health_bar
+    init_enemy_assets, draw_boss_health_bar
 )
-from pickups import Pickup, HEALTH, SHIELD, FIRERATE  
-
-
+from pickups import Pickup, HEALTH, SHIELD, FIRERATE
 
 pygame.init()
 pygame.mixer.init()
+camera_angle = 0.0
 
 
 revolver_sfx = pygame.mixer.Sound("assets/sfx/revolver.ogg")
 shotgun_sfx  = pygame.mixer.Sound("assets/sfx/shotgun.ogg")
 minigun_sfx  = pygame.mixer.Sound("assets/sfx/minigun.ogg")
-
 revolver_sfx.set_volume(0.5)
 shotgun_sfx.set_volume(0.6)
 minigun_sfx.set_volume(0.5)
 
-
 pygame.mixer.music.load("assets/music/background_music.ogg")
-pygame.mixer.music.set_volume(0.3)  
-pygame.mixer.music.play(-1)         
-
+pygame.mixer.music.set_volume(0.3)
+pygame.mixer.music.play(-1)
 
 enemy_hit_sfx = pygame.mixer.Sound("assets/sfx/enemy_hit.ogg")
 player_hit_sfx = pygame.mixer.Sound("assets/sfx/player_hit.ogg")
@@ -39,22 +36,17 @@ player_hit_sfx.set_volume(0.5)
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 clock = pygame.time.Clock()
 
-CONTACT_Z = 280  
-
+CONTACT_Z = 280 
 
 sky_texture = pygame.image.load('textures/sky_night_fullres.png').convert()
 ground_texture = pygame.image.load('textures/planet.png').convert()
-
 
 _weapon_src = {
     REVOLVER: pygame.image.load('textures/revolver.png').convert_alpha(),
     SHOTGUN: pygame.image.load('textures/shotgun.png').convert_alpha(),
     MACHINE_GUN: pygame.image.load('textures/machinegun.png').convert_alpha(),
 }
-weapon_icons_128 = {
-    k: pygame.transform.scale(v, (128, 128)) for k, v in _weapon_src.items()
-}
-
+weapon_icons_128 = {k: pygame.transform.scale(v, (128, 128)) for k, v in _weapon_src.items()}
 
 FONT_32 = pygame.font.SysFont('Arial', 32)
 FONT_64 = pygame.font.SysFont('Arial', 64, bold=True)
@@ -67,6 +59,10 @@ HEALTH_REGEN_INTERVAL = 3.0
 REGEN_COOLDOWN = 5.0
 
 
+ENEMY_BULLET_SPEED   = -900     
+ENEMY_BULLET_DAMAGE  = 4
+ENEMY_FIRE_RATE_BASE = 0.5     
+
 class Button:
     def __init__(self, rect, text, font, bg=(36, 99, 72), fg=(255,255,255)):
         self.rect = pygame.Rect(rect)
@@ -76,15 +72,12 @@ class Button:
         self.fg = fg
 
     def draw(self, surface):
-      
         shadow = self.rect.move(0, 4)
         pygame.draw.rect(surface, (0,0,0), shadow, border_radius=14)
-        
         hovered = self.rect.collidepoint(pygame.mouse.get_pos())
         mul = 1.15 if hovered else 1.0
         color = tuple(min(255, int(c*mul)) for c in self.bg)
         pygame.draw.rect(surface, color, self.rect, border_radius=14)
-     
         label = self.font.render(self.text, True, self.fg)
         surface.blit(label, (self.rect.centerx - label.get_width()//2,
                              self.rect.centery - label.get_height()//2))
@@ -114,13 +107,10 @@ def draw_start_screen(screen, start_btn, quit_btn):
     screen.blit(panel, (px, py))
 
     title = FONT_64.render("Starfall: Earth Defense", True, (0, 255, 190))
-  
-    controls = FONT_32.render("Move: WASD/Arrows   •   Shoot: SPACE   •   Pause: P", True, (200, 210, 220))
+    controls = FONT_32.render("Move: WASD   •   ↑/↓: Pitch   •   Shoot: SPACE   •   Pause: P", True, (200, 210, 220))
     screen.blit(title,    (w//2 - title.get_width()//2,    py + 40))
-   
     start_btn.draw(screen)
     quit_btn.draw(screen)
-
     controls_y = py + PANEL_H - controls.get_height() - 32
     screen.blit(controls, (w//2 - controls.get_width()//2, controls_y))
 
@@ -165,19 +155,29 @@ def draw_pause_screen(screen):
     title = FONT_64.render("PAUSED", True, (255, 255, 0))
     screen.blit(title, (w // 2 - title.get_width() // 2, h // 2 - title.get_height() // 2))
 
-
-def draw_parallax_sky(horizon_screen_y, camera_x):
+def draw_parallax_sky(horizon_screen_y, camera_x, camera_angle):
     w, _ = screen.get_size()
-    sky_offset_x = -int(camera_x * 0.1) % w
+    sky_offset_x = int((camera_angle % (2*math.pi)) / (2*math.pi) * w)
     sky_scaled = pygame.transform.smoothscale(sky_texture, (w, max(1, horizon_screen_y)))
-    screen.blit(sky_scaled, (sky_offset_x, 0))
-    screen.blit(sky_scaled, (sky_offset_x - w, 0))  
+    screen.blit(sky_scaled, (-sky_offset_x, 0))
+    screen.blit(sky_scaled, (-sky_offset_x + w, 0))
 
-def draw_bullet(bullet, camera_x, camera_y, horizon_screen_y):
-    screen_x, screen_y, scale = project(bullet['x'], bullet['y'], bullet['z'], camera_x, camera_y, horizon_screen_y)
-    r = max(2, int(6 * scale))
-    pygame.draw.circle(screen, (100, 255, 100), (screen_x, screen_y), r)
-    pygame.draw.circle(screen, (200, 255, 200), (screen_x, screen_y), r // 2)
+def draw_bullet(bullet, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs):
+    sx, sy, sc = project(bullet['x'], bullet['y'], bullet['z'],
+                         camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
+    r = max(2, int(6 * sc))
+    pygame.draw.circle(screen, (100, 255, 100), (sx, sy), r)
+    pygame.draw.circle(screen, (200, 255, 200), (sx, sy), r // 2)
+
+def draw_enemy_sprite(screen, enemy, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs):
+    x, y, z = enemy.get_pos()
+    sx, sy, sc = project(x, y, z, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
+    sc = max(0.1, min(1.0, sc))
+    enemy_w = int(enemy.texture.get_width() * sc)
+    enemy_h = int(enemy.texture.get_height() * sc)
+    img = pygame.transform.scale(enemy.texture, (enemy_w, enemy_h))
+    screen.blit(img, (sx - enemy_w // 2, sy - enemy_h // 2))
+    return x, y, z
 
 def draw_hud(player, player_health, wave):
     w, h = screen.get_size()
@@ -189,7 +189,6 @@ def draw_hud(player, player_health, wave):
     icon = weapon_icons_128[player.current_weapon]
     screen.blit(icon, (30, h - 158))
 
-    
     if player.current_weapon == MACHINE_GUN:
         heat_percentage = player.heat / player.max_heat
         heat_color = (255, 100, 0) if not player.overheated else (255, 0, 0)
@@ -204,20 +203,17 @@ def draw_hud(player, player_health, wave):
 
     shield_t = getattr(player, "shield_timer", 0.0)
     if shield_t > 0.0:
-   
         shield_full = max(6.0, shield_t)
         ratio = min(1.0, shield_t / shield_full)
         pygame.draw.rect(screen, (30,30,30), (x0, y0, bar_w, bar_h))
         pygame.draw.rect(screen, (80, 180, 255), (x0, y0, int(bar_w * ratio), bar_h))
 
-  
     fr_t = getattr(player, "fire_rate_timer", 0.0)
     if fr_t > 0.0:
         fr_full = max(6.0, fr_t)
         ratio = min(1.0, fr_t / fr_full)
         pygame.draw.rect(screen, (30,30,30), (x0, y0 + bar_h + 6, bar_w, bar_h))
         pygame.draw.rect(screen, (255, 180, 60), (x0, y0 + bar_h + 6, int(bar_w * ratio), bar_h))
-
 
 def draw_damage_flash(timer):
     if timer > 0:
@@ -239,12 +235,33 @@ def draw_fog_gradient(horizon_screen_y):
         pygame.draw.line(fog_surface, color, (0, y), (w, y))
     screen.blit(fog_surface, (0, horizon_screen_y - fog_height // 2))
 
-def draw_particle(p, camera_x, camera_y, horizon_screen_y):
-    screen_x, screen_y, scale = project(p.x, p.y, p.z, camera_x, camera_y, horizon_screen_y)
-    if scale > 0:
-        radius = max(1, int(4 * scale * (p.lifetime / 0.6)))
-        pygame.draw.circle(screen, p.color, (screen_x, screen_y), radius)
+def draw_particle(p, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs):
+    sx, sy, sc = project(p.x, p.y, p.z, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
+    if sc > 0:
+        radius = max(1, int(4 * sc * (p.lifetime / 0.6)))
+        pygame.draw.circle(screen, p.color, (sx, sy), radius)
 
+def spawn_enemy_shot(enemy, player):
+    ex, ey, ez = enemy.get_pos()
+    speed = ENEMY_BULLET_SPEED
+    t = max(0.1, (ez - 0.0) / (-speed))
+    vx = (player.x - ex) / t
+    vy = (player.y - ey) / t
+    vx += random.uniform(-80, 80) / t
+    vy += random.uniform(-80, 80) / t
+    return {
+    'x': ex, 'y': ey, 'z': ez,
+    'vx': vx, 'vy': vy, 'vz': speed,
+    'damage': getattr(enemy, 'damage', 3) 
+    }
+
+
+def draw_enemy_bullet(eb, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs):
+    sx, sy, sc = project(eb['x'], eb['y'], eb['z'],
+                         camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
+    r = max(2, int(5 * sc))
+    pygame.draw.circle(screen, (255, 80, 80), (sx, sy), r)
+    pygame.draw.circle(screen, (255, 220, 220), (sx, sy), r // 2)
 
 GAME_STATE_MENU = 'MENU'
 GAME_STATE_PLAYING = 'PLAYING'
@@ -252,12 +269,12 @@ GAME_STATE_PAUSED = 'PAUSED'
 GAME_STATE_GAME_OVER = 'GAME_OVER'
 
 def main():
-    global screen
+    global screen, camera_angle
     game_state = GAME_STATE_MENU
 
     def reset_game():
-        nonlocal player, player_health, damage_timer, screen_flash_timer, wave, enemies, regen_timer, regen_tick_timer, particles, pickups
-        player = Player(speed=1000, y_speed=550) 
+        nonlocal player, player_health, damage_timer, screen_flash_timer, wave, enemies, regen_timer, regen_tick_timer, particles, pickups, enemy_bullets
+        player = Player(speed=1000, y_speed=550)
         player_health = PLAYER_MAX_HEALTH
         damage_timer = 0.0
         screen_flash_timer = 0.0
@@ -266,9 +283,9 @@ def main():
         regen_timer = 0.0
         regen_tick_timer = 0.0
         particles = []
-        pickups = [] 
+        pickups = []
+        enemy_bullets = []
 
-  
     player = Player(speed=1000, y_speed=550)
     player_health = PLAYER_MAX_HEALTH
     damage_timer = 0.0
@@ -276,7 +293,8 @@ def main():
     wave = 1
     enemies = []
     particles = []
-    pickups = []  
+    pickups = []
+    enemy_bullets = []
     regen_timer = 0.0
     regen_tick_timer = 0.0
 
@@ -291,7 +309,6 @@ def main():
         elif game_state == GAME_STATE_GAME_OVER:
             restart_btn, menu_btn, quit_btn_end = make_end_buttons(w, h)
 
-        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit(); sys.exit()
@@ -299,7 +316,6 @@ def main():
                 new_width, new_height = event.size
                 screen = pygame.display.set_mode((new_width, new_height), pygame.RESIZABLE)
 
-   
             if game_state == GAME_STATE_MENU:
                 if start_btn and start_btn.clicked(event):
                     reset_game()
@@ -312,12 +328,10 @@ def main():
                     elif event.key == pygame.K_ESCAPE:
                         pygame.quit(); sys.exit()
 
-       
             elif game_state == GAME_STATE_PLAYING:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
                     game_state = GAME_STATE_PAUSED
 
-          
             elif game_state == GAME_STATE_PAUSED:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
                     game_state = GAME_STATE_PLAYING
@@ -337,7 +351,6 @@ def main():
                     elif event.key == pygame.K_ESCAPE:
                         pygame.quit(); sys.exit()
 
-        
         if game_state == GAME_STATE_MENU:
             draw_start_screen(screen, start_btn, quit_btn)
             pygame.display.flip()
@@ -353,19 +366,27 @@ def main():
             pygame.display.flip()
             continue
 
- 
+      
         screen_flash_timer = max(0.0, screen_flash_timer - dt)
         keys = pygame.key.get_pressed()
-        player.update(dt, keys)
+        ROT_SPEED = 1.6
+        if keys[pygame.K_q]:
+            camera_angle -= ROT_SPEED * dt
+        if keys[pygame.K_e]:
+            camera_angle += ROT_SPEED * dt
+
+        player.update(dt, keys, camera_angle)
         player.shoot(keys)
         player.update_bullets(dt, ENEMY_MAX_Z + 200)
-        camera_x, camera_y = player.get_camera()
+
+        camera_x, camera_y = player.get_camera()   
+        forward_ofs = camera_y                      
         bullets = player.get_bullets()
 
         current_width, current_height = screen.get_size()
-        horizon_screen_y = current_height // 2 + 60 - int(camera_y * 0.2)
+        horizon_screen_y = current_height // 2 + 60 - int(player.get_pitch() * 0.2)
 
-      
+    
         regen_timer = max(0.0, regen_timer - dt)
         regen_tick_timer += dt
         if regen_timer <= 0 and regen_tick_timer >= HEALTH_REGEN_INTERVAL:
@@ -374,33 +395,29 @@ def main():
                 player_health = min(player_health, PLAYER_MAX_HEALTH)
             regen_tick_timer = 0.0
 
-   
         enemy_pos = [(e, e.get_pos()) for e in enemies if e.alive]
 
-      
-        collided = []
-        for enemy, (_, _, z) in enemy_pos:
-            if z < CONTACT_Z:
-                enemy.alive = False
-                collided.append(enemy)
-
-        if collided:
-            total_damage = sum(e.damage for e in collided)
-         
-            if getattr(player, "shield_timer", 0.0) > 0.0:
-                total_damage = 0
-            player_health -= total_damage
-            regen_timer = REGEN_COOLDOWN
-            player_hit_sfx.play()  
-            screen_flash_timer = 0.2
-            if player_health <= 0:
-                game_state = GAME_STATE_GAME_OVER
-
        
+        for enemy, (ex, ey, ez) in enemy_pos:
+            if not enemy.alive:
+                continue
+            rel_z = ez - forward_ofs
+            if 120 < rel_z < ENEMY_MAX_Z + 200:
+                rate = ENEMY_FIRE_RATE_BASE
+                if isinstance(enemy, FastEnemy):
+                    rate = 0.8
+                elif isinstance(enemy, TankEnemy):
+                    rate = 0.35
+                elif isinstance(enemy, (Boss1Enemy, Boss2Enemy)):
+                    rate = 1.2
+                if random.random() < rate * dt:
+                    enemy_bullets.append(spawn_enemy_shot(enemy, player))
+
+      
         for enemy, (x, y, z) in enemy_pos:
             if not enemy.alive:
                 continue
-            _, _, scale = project(x, y, z, camera_x, camera_y, horizon_screen_y)
+            _, _, scale = project(x, y, z, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
             scale = max(0.1, min(1.0, scale))
             hitbox_x, hitbox_y, hitbox_z = enemy.get_hitbox_size(scale)
 
@@ -417,67 +434,87 @@ def main():
                         for _ in range(20):
                             particles.append(Particle(x, y, z))
 
-                   
+                  
                         drop_roll = random.random()
-                        if drop_roll < 0.10:  
+                        if drop_roll < 0.10:
                             pickups.append(Pickup(x, y, z, HEALTH, amount=8))
-                        elif drop_roll < 0.16:  
+                        elif drop_roll < 0.16:
                             pickups.append(Pickup(x, y, z, SHIELD, duration=6.0))
-                        elif drop_roll < 0.22:  
+                        elif drop_roll < 0.22:
                             pickups.append(Pickup(x, y, z, FIRERATE, duration=6.0))
 
-        
         player.cull_bullets(ENEMY_MAX_Z + 200)
 
-      
+  
         for enemy in enemies:
             if enemy.alive:
-                enemy.update(dt)
+                enemy.update(dt, player.x, player.y, forward_ofs)
 
    
+        dead_enemy_bullets = []
+        for eb in enemy_bullets:
+            eb['x'] += eb['vx'] * dt
+            eb['y'] += eb['vy'] * dt
+            eb['z'] += eb['vz'] * dt
+
+            rel_z = eb['z'] - forward_ofs
+      
+            if rel_z < 80:
+                if abs(eb['x'] - player.x) < 90 and abs(eb['y'] - player.y) < 90:
+                    if getattr(player, "shield_timer", 0.0) <= 0.0:
+                        player_health -= eb['damage']
+                        regen_timer = REGEN_COOLDOWN
+                        player_hit_sfx.play()
+                        screen_flash_timer = 0.2
+                    dead_enemy_bullets.append(eb)
+                    if player_health <= 0:
+                        game_state = GAME_STATE_GAME_OVER
+                        break
+
+            if eb['z'] < -100:
+                dead_enemy_bullets.append(eb)
+
+        if dead_enemy_bullets:
+            enemy_bullets = [b for b in enemy_bullets if b not in dead_enemy_bullets]
+
+      
         for item in pickups:
             if not item.alive:
                 continue
 
             item.update(dt)
 
-       
-            sx, sy, s = project(item.x, item.y, item.z, camera_x, camera_y, horizon_screen_y)
-            px, py, _ = project(player.x, player.y, item.z, camera_x, camera_y, horizon_screen_y)
+            sx, sy, s = project(item.x, item.y, item.z, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
+            px, py, _ = project(player.x, player.y, item.z, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
 
             dx = sx - px
             dy = sy - py
             dist = (dx*dx + dy*dy) ** 0.5
-            if dist < 200:  
+            if dist < 200:
                 pull = 480.0 * dt
                 if dist > 1e-3:
                     item.vx += (px - sx) / dist * pull
                     item.vy += (py - sy) / dist * pull
 
-           
-            radius_screen = max(40, int(64 * s))  
+            radius_screen = max(40, int(64 * s))
             hit_screen = (dx*dx + dy*dy) <= (radius_screen * radius_screen)
 
-           
             wx = abs(item.x - player.x)
             wy = abs(item.y - player.y)
-            wz_ok = item.z < (CONTACT_Z + 120)  
+            wz_ok = (item.z - forward_ofs) < (CONTACT_Z + 120) 
             hit_world = (wx < 130 and wy < 130 and wz_ok)
 
             if hit_screen or hit_world:
                 player_health = item.apply(player, player_health, PLAYER_MAX_HEALTH)
                 item.alive = False
-                continue  
+                continue
 
-       
             if item.z < 20:
                 item.alive = False
 
-        
         pickups = [p for p in pickups if p.alive]
 
-
-      
+    
         if all(not e.alive for e in enemies):
             wave += 1
             enemies.clear()
@@ -495,12 +532,10 @@ def main():
                     else:
                         enemies.append(random.choice([Enemy(), FastEnemy(), TankEnemy()]))
 
-    
         for p in particles:
             p.update(dt)
         particles = [p for p in particles if p.lifetime > 0]
 
-     
         enemies.sort(key=lambda e: e.z, reverse=True)
 
         
@@ -508,35 +543,37 @@ def main():
         cam_x = camera_x
         cam_y = camera_y
 
-        draw_parallax_sky(horizon_screen_y, cam_x)
-        render_mode7(screen, ground_texture, cam_x, cam_y, 0.0, horizon_screen_y)
+        draw_parallax_sky(horizon_screen_y, cam_x, camera_angle)
+        render_mode7(screen, ground_texture, cam_x, cam_y, camera_angle, horizon_screen_y)
         draw_fog_gradient(horizon_screen_y)
 
         for enemy in enemies:
             if enemy.alive:
-                draw_enemy(screen, enemy, cam_x, cam_y, horizon_screen_y)
+                draw_enemy_sprite(screen, enemy, cam_x, cam_y, horizon_screen_y, camera_angle, forward_ofs)
 
-       
         boss = next((e for e in enemies if e.alive and isinstance(e, (Boss1Enemy, Boss2Enemy))), None)
         if boss:
             draw_boss_health_bar(screen, boss)
 
-       
-        for pu in pickups:
-            pu.draw(screen, cam_x, cam_y, horizon_screen_y)
+    
+        for eb in enemy_bullets:
+            draw_enemy_bullet(eb, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
 
+        
+        for pu in pickups:
+            pu.draw(screen, cam_x, cam_y, horizon_screen_y, camera_angle)
+
+      
         for bullet in bullets:
-            draw_bullet(bullet, camera_x, camera_y, horizon_screen_y)
+            draw_bullet(bullet, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
 
         draw_hud(player, player_health, wave)
         draw_damage_flash(screen_flash_timer)
 
-     
         for p in particles:
-            draw_particle(p, cam_x, cam_y, horizon_screen_y)
+            draw_particle(p, cam_x, cam_y, horizon_screen_y, camera_angle, forward_ofs)
 
         pygame.display.flip()
-
 
 class Particle:
     def __init__(self, x, y, z):
