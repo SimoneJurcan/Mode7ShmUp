@@ -11,40 +11,46 @@ from enemy import (
     init_enemy_assets, draw_boss_health_bar
 )
 from pickups import Pickup, HEALTH, SHIELD, FIRERATE
+from paths import rp
 
 pygame.init()
 pygame.mixer.init()
 camera_angle = 0.0
+START_BUTTON_X_OFFSET = -30
+CONTROLS_X_OFFSET     = -30
 
-
-revolver_sfx = pygame.mixer.Sound("assets/sfx/revolver.ogg")
-shotgun_sfx  = pygame.mixer.Sound("assets/sfx/shotgun.ogg")
-minigun_sfx  = pygame.mixer.Sound("assets/sfx/minigun.ogg")
+revolver_sfx = pygame.mixer.Sound(rp("assets", "sfx", "revolver.ogg"))
+shotgun_sfx  = pygame.mixer.Sound(rp("assets", "sfx", "shotgun.ogg"))
+minigun_sfx  = pygame.mixer.Sound(rp("assets", "sfx", "minigun.ogg"))
 revolver_sfx.set_volume(0.5)
 shotgun_sfx.set_volume(0.6)
 minigun_sfx.set_volume(0.5)
 
-pygame.mixer.music.load("assets/music/background_music.ogg")
-pygame.mixer.music.set_volume(0.3)
+MUSIC_VOL_DEFAULT = 0.3
+pygame.mixer.music.load(rp("assets", "music", "background_music.ogg"))
+pygame.mixer.music.set_volume(MUSIC_VOL_DEFAULT)
 pygame.mixer.music.play(-1)
 
-enemy_hit_sfx = pygame.mixer.Sound("assets/sfx/enemy_hit.ogg")
-player_hit_sfx = pygame.mixer.Sound("assets/sfx/player_hit.ogg")
+enemy_hit_sfx = pygame.mixer.Sound(rp("assets", "sfx", "enemy_hit.ogg"))
+player_hit_sfx = pygame.mixer.Sound(rp("assets", "sfx", "player_hit.ogg"))
 enemy_hit_sfx.set_volume(0.3)
 player_hit_sfx.set_volume(0.5)
 
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
 clock = pygame.time.Clock()
 
-CONTACT_Z = 280 
+menu_bg   = pygame.image.load(rp("textures", "menu_bg.png")).convert()
+defeat_bg = pygame.image.load(rp("textures", "defeat_bg.png")).convert()
 
-sky_texture = pygame.image.load('textures/sky_night_fullres.png').convert()
-ground_texture = pygame.image.load('textures/planet.png').convert()
+CONTACT_Z = 280
+
+sky_texture = pygame.image.load(rp("textures", "sky_night_fullres.png")).convert()
+ground_texture = pygame.image.load(rp("textures", "planet.png")).convert()
 
 _weapon_src = {
-    REVOLVER: pygame.image.load('textures/revolver.png').convert_alpha(),
-    SHOTGUN: pygame.image.load('textures/shotgun.png').convert_alpha(),
-    MACHINE_GUN: pygame.image.load('textures/machinegun.png').convert_alpha(),
+    REVOLVER: pygame.image.load(rp("textures", "revolver.png")).convert_alpha(),
+    SHOTGUN: pygame.image.load(rp("textures", "shotgun.png")).convert_alpha(),
+    MACHINE_GUN: pygame.image.load(rp("textures", "machinegun.png")).convert_alpha(),
 }
 weapon_icons_128 = {k: pygame.transform.scale(v, (128, 128)) for k, v in _weapon_src.items()}
 
@@ -58,10 +64,9 @@ HEALTH_REGEN_AMOUNT = 3
 HEALTH_REGEN_INTERVAL = 3.0
 REGEN_COOLDOWN = 5.0
 
-
-ENEMY_BULLET_SPEED   = -900     
+ENEMY_BULLET_SPEED   = -900
 ENEMY_BULLET_DAMAGE  = 4
-ENEMY_FIRE_RATE_BASE = 0.5     
+ENEMY_FIRE_RATE_BASE = 0.5
 
 class Button:
     def __init__(self, rect, text, font, bg=(36, 99, 72), fg=(255,255,255)):
@@ -86,66 +91,78 @@ class Button:
         return (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1
                 and self.rect.collidepoint(event.pos))
 
+def blit_cover(surface, image, scroll_amp=0, scroll_speed=0.0, nudge_x=0):
+    w, h = surface.get_size()
+    iw, ih = image.get_size()
+    scale = max(w / iw, h / ih)
+    sw, sh = int(iw * scale), int(ih * scale)
+    img = pygame.transform.smoothscale(image, (sw, sh))
+    oy = 0
+    if scroll_amp:
+        t = pygame.time.get_ticks() / 1000.0
+        oy = int(scroll_amp * math.sin(t * scroll_speed))
+    surface.blit(img, (w // 2 - sw // 2 + nudge_x, h // 2 - sh // 2 + oy))
+
 def make_start_buttons(w, h):
-    BTN_W = min(360, int(w*0.5))
+    BTN_W = min(360, int(w * 0.5))
     BTN_H = 64
     GAP   = 16
-    y0 = int(h*0.48)
-    start = Button((w//2 - BTN_W//2, y0, BTN_W, BTN_H), "START",  FONT_32, bg=(0,130,80))
-    quitb = Button((w//2 - BTN_W//2, y0 + BTN_H + GAP, BTN_W, BTN_H), "QUIT", FONT_32, bg=(146, 24, 60))
+    y0 = int(h * 0.48)
+    cx = w // 2
+
+    start = Button((0, y0, BTN_W, BTN_H), "START",  FONT_32, bg=(0,130,80))
+    quitb = Button((0, y0 + BTN_H + GAP, BTN_W, BTN_H), "QUIT", FONT_32, bg=(146, 24, 60))
+
+    start.rect.centerx = cx + START_BUTTON_X_OFFSET
+    quitb.rect.centerx = cx + START_BUTTON_X_OFFSET
     return start, quitb
 
 def draw_start_screen(screen, start_btn, quit_btn):
     w, h = screen.get_size()
-    screen.fill((14, 18, 24))
-    PANEL_W = min(900, int(w*0.82))
-    PANEL_H = min(560, int(h*0.76))
-    panel   = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
-    panel.fill((22, 26, 34, 230))
-    px = w//2 - PANEL_W//2
-    py = h//2 - PANEL_H//2
-    screen.blit(panel, (px, py))
+    cx = w // 2
+    blit_cover(screen, menu_bg, scroll_amp=10, scroll_speed=0.22)  
 
-    title = FONT_64.render("Starfall: Earth Defense", True, (0, 255, 190))
-    controls = FONT_32.render("Move: WASD   •   ↑/↓: Pitch   •   Shoot: SPACE   •   Pause: P", True, (200, 210, 220))
-    screen.blit(title,    (w//2 - title.get_width()//2,    py + 40))
+    
+    start_btn.rect.centerx = cx + START_BUTTON_X_OFFSET
+    quit_btn.rect.centerx  = cx + START_BUTTON_X_OFFSET
     start_btn.draw(screen)
     quit_btn.draw(screen)
-    controls_y = py + PANEL_H - controls.get_height() - 32
-    screen.blit(controls, (w//2 - controls.get_width()//2, controls_y))
+
+
+    controls = FONT_32.render("Move: WASD   •   Shoot: SPACE   •   Pause: P", True, (220, 230, 240))
+    rc = controls.get_rect(midbottom=(cx + CONTROLS_X_OFFSET, h - 28))
+    screen.blit(controls, rc)
 
 def make_end_buttons(w, h):
     BTN_W = min(360, int(w*0.5))
     BTN_H = 64
     GAP   = 16
     y0 = int(h*0.55)
-    restart = Button((w//2 - BTN_W//2, y0, BTN_W, BTN_H), "RESTART",  FONT_32, bg=(0,110,160))
-    menu    = Button((w//2 - BTN_W//2, y0 + BTN_H + GAP, BTN_W, BTN_H), "MAIN MENU", FONT_32, bg=(90,90,90))
-    quitb   = Button((w//2 - BTN_W//2, y0 + 2*(BTN_H + GAP), BTN_W, BTN_H), "QUIT", FONT_32, bg=(146,24,60))
+    cx = w // 2
+    restart = Button((0, y0, BTN_W, BTN_H), "RESTART",  FONT_32, bg=(0,110,160))
+    menu    = Button((0, y0 + BTN_H + GAP, BTN_W, BTN_H), "MAIN MENU", FONT_32, bg=(90,90,90))
+    quitb   = Button((0, y0 + 2*(BTN_H + GAP), BTN_W, BTN_H), "QUIT", FONT_32, bg=(146,24,60))
+    restart.rect.centerx = menu.rect.centerx = quitb.rect.centerx = cx
     return restart, menu, quitb
 
 def draw_end_screen(screen, wave, restart_btn, menu_btn, quit_btn, score=None):
     w, h = screen.get_size()
-    screen.fill((16, 14, 18))
-    PANEL_W = min(900, int(w*0.82))
-    PANEL_H = min(560, int(h*0.76))
-    panel   = pygame.Surface((PANEL_W, PANEL_H), pygame.SRCALPHA)
-    panel.fill((30, 22, 28, 235))
-    px = w//2 - PANEL_W//2
-    py = h//2 - PANEL_H//2
-    screen.blit(panel, (px, py))
+    cx = w // 2
+    blit_cover(screen, defeat_bg, scroll_amp=6, scroll_speed=0.15)
 
     title = FONT_64.render("GAME OVER", True, (255, 90, 90))
-    screen.blit(title, (w//2 - title.get_width()//2, py + 48))
+    r_title = title.get_rect(midtop=(cx, int(h * 0.10)))
+    screen.blit(title, r_title)
 
-    y_info = py + 48 + title.get_height() + 20
+    y_info = r_title.bottom + 20
     wave_text = FONT_32.render(f"Reached Wave: {wave}", True, (255, 220, 220))
-    screen.blit(wave_text, (w//2 - wave_text.get_width()//2, y_info))
+    screen.blit(wave_text, wave_text.get_rect(midtop=(cx, y_info)))
 
     if score is not None:
         score_text = FONT_32.render(f"Score: {score}", True, (255, 220, 220))
-        screen.blit(score_text, (w//2 - score_text.get_width()//2, y_info + wave_text.get_height() + 8))
+        screen.blit(score_text, score_text.get_rect(midtop=(cx, y_info + wave_text.get_height() + 8)))
 
+    restart_btn.rect.centerx = menu_btn.rect.centerx = quit_btn.rect.centerx = cx
     restart_btn.draw(screen)
     menu_btn.draw(screen)
     quit_btn.draw(screen)
@@ -249,12 +266,7 @@ def spawn_enemy_shot(enemy, player):
     vy = (player.y - ey) / t
     vx += random.uniform(-80, 80) / t
     vy += random.uniform(-80, 80) / t
-    return {
-    'x': ex, 'y': ey, 'z': ez,
-    'vx': vx, 'vy': vy, 'vz': speed,
-    'damage': getattr(enemy, 'damage', 3) 
-    }
-
+    return {'x': ex, 'y': ey, 'z': ez, 'vx': vx, 'vy': vy, 'vz': speed, 'damage': getattr(enemy, 'damage', ENEMY_BULLET_DAMAGE)}
 
 def draw_enemy_bullet(eb, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs):
     sx, sy, sc = project(eb['x'], eb['y'], eb['z'],
@@ -268,9 +280,31 @@ GAME_STATE_PLAYING = 'PLAYING'
 GAME_STATE_PAUSED = 'PAUSED'
 GAME_STATE_GAME_OVER = 'GAME_OVER'
 
+class Particle:
+    def __init__(self, x, y, z):
+        self.x = x
+        self.y = y
+        self.z = z
+        self.vx = random.uniform(-100, 100)
+        self.vy = random.uniform(-100, 100)
+        self.vz = random.uniform(50, 150)
+        self.lifetime = random.uniform(0.3, 0.6)
+        self.color = random.choice([(255,100,0), (255,200,0), (200,50,0)])
+
+    def update(self, dt):
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        self.z += self.vz * dt
+        self.lifetime -= dt
+
 def main():
     global screen, camera_angle
     game_state = GAME_STATE_MENU
+    music_muted = False
+    music_btn = None
+
+    start_btn = quit_btn = None
+    restart_btn = menu_btn = quit_btn_end = None
 
     def reset_game():
         nonlocal player, player_health, damage_timer, screen_flash_timer, wave, enemies, regen_timer, regen_tick_timer, particles, pickups, enemy_bullets
@@ -302,13 +336,24 @@ def main():
         dt = clock.tick(60) / 1000.0
         w, h = screen.get_size()
 
-        start_btn = quit_btn = None
-        restart_btn = menu_btn = quit_btn_end = None
         if game_state == GAME_STATE_MENU:
             start_btn, quit_btn = make_start_buttons(w, h)
+            restart_btn = menu_btn = quit_btn_end = None
+            music_btn = None
         elif game_state == GAME_STATE_GAME_OVER:
             restart_btn, menu_btn, quit_btn_end = make_end_buttons(w, h)
+            start_btn = quit_btn = None
+            music_btn = None
+        elif game_state == GAME_STATE_PAUSED:
+            BTN_W, BTN_H = 240, 56
+            label = "MUTE MUSIC" if not music_muted else "UNMUTE"
+            music_btn = Button((w//2 - BTN_W//2, int(h*0.55), BTN_W, BTN_H), label, FONT_32, bg=(60,60,80))
+            start_btn = quit_btn = restart_btn = menu_btn = quit_btn_end = None
+        else:
+            start_btn = quit_btn = restart_btn = menu_btn = quit_btn_end = None
+            music_btn = None
 
+       
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit(); sys.exit()
@@ -318,8 +363,7 @@ def main():
 
             if game_state == GAME_STATE_MENU:
                 if start_btn and start_btn.clicked(event):
-                    reset_game()
-                    game_state = GAME_STATE_PLAYING
+                    reset_game(); game_state = GAME_STATE_PLAYING
                 elif quit_btn and quit_btn.clicked(event):
                     pygame.quit(); sys.exit()
                 if event.type == pygame.KEYDOWN:
@@ -333,6 +377,10 @@ def main():
                     game_state = GAME_STATE_PAUSED
 
             elif game_state == GAME_STATE_PAUSED:
+        
+                if music_btn and music_btn.clicked(event):
+                    music_muted = not music_muted
+                    pygame.mixer.music.set_volume(0.0 if music_muted else MUSIC_VOL_DEFAULT)
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_p:
                     game_state = GAME_STATE_PLAYING
 
@@ -341,6 +389,7 @@ def main():
                     reset_game(); game_state = GAME_STATE_PLAYING
                 elif menu_btn and menu_btn.clicked(event):
                     game_state = GAME_STATE_MENU
+                    start_btn, quit_btn = make_start_buttons(w, h)
                 elif quit_btn_end and quit_btn_end.clicked(event):
                     pygame.quit(); sys.exit()
                 if event.type == pygame.KEYDOWN:
@@ -348,9 +397,11 @@ def main():
                         reset_game(); game_state = GAME_STATE_PLAYING
                     elif event.key == pygame.K_m:
                         game_state = GAME_STATE_MENU
+                        start_btn, quit_btn = make_start_buttons(w, h)
                     elif event.key == pygame.K_ESCAPE:
                         pygame.quit(); sys.exit()
 
+ 
         if game_state == GAME_STATE_MENU:
             draw_start_screen(screen, start_btn, quit_btn)
             pygame.display.flip()
@@ -358,6 +409,8 @@ def main():
 
         if game_state == GAME_STATE_PAUSED:
             draw_pause_screen(screen)
+            if music_btn:
+                music_btn.draw(screen)
             pygame.display.flip()
             continue
 
@@ -366,7 +419,7 @@ def main():
             pygame.display.flip()
             continue
 
-      
+        
         screen_flash_timer = max(0.0, screen_flash_timer - dt)
         keys = pygame.key.get_pressed()
         ROT_SPEED = 1.6
@@ -379,14 +432,14 @@ def main():
         player.shoot(keys)
         player.update_bullets(dt, ENEMY_MAX_Z + 200)
 
-        camera_x, camera_y = player.get_camera()   
-        forward_ofs = camera_y                      
+        camera_x, camera_y = player.get_camera()
+        forward_ofs = camera_y
         bullets = player.get_bullets()
 
         current_width, current_height = screen.get_size()
         horizon_screen_y = current_height // 2 + 60 - int(player.get_pitch() * 0.2)
 
-    
+      
         regen_timer = max(0.0, regen_timer - dt)
         regen_tick_timer += dt
         if regen_timer <= 0 and regen_tick_timer >= HEALTH_REGEN_INTERVAL:
@@ -397,7 +450,7 @@ def main():
 
         enemy_pos = [(e, e.get_pos()) for e in enemies if e.alive]
 
-       
+     
         for enemy, (ex, ey, ez) in enemy_pos:
             if not enemy.alive:
                 continue
@@ -413,7 +466,6 @@ def main():
                 if random.random() < rate * dt:
                     enemy_bullets.append(spawn_enemy_shot(enemy, player))
 
-      
         for enemy, (x, y, z) in enemy_pos:
             if not enemy.alive:
                 continue
@@ -433,8 +485,7 @@ def main():
                         enemy.alive = False
                         for _ in range(20):
                             particles.append(Particle(x, y, z))
-
-                  
+                   
                         drop_roll = random.random()
                         if drop_roll < 0.10:
                             pickups.append(Pickup(x, y, z, HEALTH, amount=8))
@@ -445,12 +496,15 @@ def main():
 
         player.cull_bullets(ENEMY_MAX_Z + 200)
 
-  
+      
         for enemy in enemies:
             if enemy.alive:
-                enemy.update(dt, player.x, player.y, forward_ofs)
+                try:
+                    enemy.update(dt, player.x, player.y, forward_ofs)
+                except TypeError:
+                    enemy.update(dt)
 
-   
+       
         dead_enemy_bullets = []
         for eb in enemy_bullets:
             eb['x'] += eb['vx'] * dt
@@ -458,7 +512,6 @@ def main():
             eb['z'] += eb['vz'] * dt
 
             rel_z = eb['z'] - forward_ofs
-      
             if rel_z < 80:
                 if abs(eb['x'] - player.x) < 90 and abs(eb['y'] - player.y) < 90:
                     if getattr(player, "shield_timer", 0.0) <= 0.0:
@@ -477,7 +530,7 @@ def main():
         if dead_enemy_bullets:
             enemy_bullets = [b for b in enemy_bullets if b not in dead_enemy_bullets]
 
-      
+    
         for item in pickups:
             if not item.alive:
                 continue
@@ -501,7 +554,7 @@ def main():
 
             wx = abs(item.x - player.x)
             wy = abs(item.y - player.y)
-            wz_ok = (item.z - forward_ofs) < (CONTACT_Z + 120) 
+            wz_ok = (item.z - forward_ofs) < (CONTACT_Z + 120)
             hit_world = (wx < 130 and wy < 130 and wz_ok)
 
             if hit_screen or hit_world:
@@ -514,7 +567,7 @@ def main():
 
         pickups = [p for p in pickups if p.alive]
 
-    
+      
         if all(not e.alive for e in enemies):
             wave += 1
             enemies.clear()
@@ -538,7 +591,7 @@ def main():
 
         enemies.sort(key=lambda e: e.z, reverse=True)
 
-        
+       
         screen.fill((0, 0, 0))
         cam_x = camera_x
         cam_y = camera_y
@@ -555,15 +608,12 @@ def main():
         if boss:
             draw_boss_health_bar(screen, boss)
 
-    
         for eb in enemy_bullets:
             draw_enemy_bullet(eb, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
 
-        
         for pu in pickups:
             pu.draw(screen, cam_x, cam_y, horizon_screen_y, camera_angle)
 
-      
         for bullet in bullets:
             draw_bullet(bullet, camera_x, camera_y, horizon_screen_y, camera_angle, forward_ofs)
 
@@ -574,23 +624,6 @@ def main():
             draw_particle(p, cam_x, cam_y, horizon_screen_y, camera_angle, forward_ofs)
 
         pygame.display.flip()
-
-class Particle:
-    def __init__(self, x, y, z):
-        self.x = x
-        self.y = y
-        self.z = z
-        self.vx = random.uniform(-100, 100)
-        self.vy = random.uniform(-100, 100)
-        self.vz = random.uniform(50, 150)
-        self.lifetime = random.uniform(0.3, 0.6)
-        self.color = random.choice([(255,100,0), (255,200,0), (200,50,0)])
-
-    def update(self, dt):
-        self.x += self.vx * dt
-        self.y += self.vy * dt
-        self.z += self.vz * dt
-        self.lifetime -= dt
 
 if __name__ == '__main__':
     main()
