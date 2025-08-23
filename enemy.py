@@ -27,14 +27,13 @@ boss1_texture = None
 boss2_texture = None
 _assets_initialized = False
 
-def load_texture(path: str, use_colorkey: bool = False) -> pygame.Surface:
-    img = pygame.image.load(rp(*path.split('/')))
+def load_texture(*parts: str, use_colorkey: bool = False) -> pygame.Surface:
+    img = pygame.image.load(rp(*parts))
     if use_colorkey:
         surf = img.convert()
         surf.set_colorkey(surf.get_at((0, 0)))
         return surf
-    else:
-        return img.convert_alpha()
+    return img.convert_alpha()
 
 def init_enemy_assets():
     global _assets_initialized
@@ -42,11 +41,11 @@ def init_enemy_assets():
         return
 
     global enemy_texture, enemy_fast_texture, enemy_tank_texture, boss1_texture, boss2_texture
-    enemy_texture       = load_texture('textures/enemy_alien.png',       use_colorkey=False)
-    enemy_fast_texture  = load_texture('textures/enemy_alien_fast.png',  use_colorkey=False)
-    enemy_tank_texture  = load_texture('textures/enemy_alien_tank.png',  use_colorkey=False)
-    boss1_texture       = load_texture('textures/Boss1.png',             use_colorkey=False)
-    boss2_texture       = load_texture('textures/Boss2.png',             use_colorkey=True)
+    enemy_texture       = load_texture('textures', 'enemy_alien.png',       use_colorkey=False)
+    enemy_fast_texture  = load_texture('textures', 'enemy_alien_fast.png',  use_colorkey=False)
+    enemy_tank_texture  = load_texture('textures', 'enemy_alien_tank.png',  use_colorkey=False)
+    boss1_texture       = load_texture('textures', 'Boss1.png',             use_colorkey=False)
+    boss2_texture       = load_texture('textures', 'Boss2.png',             use_colorkey=True)
 
     _assets_initialized = True
 

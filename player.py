@@ -1,12 +1,12 @@
 import pygame
 import random
 import math
-
+from paths import rp
 pygame.mixer.init()
 
-revolver_sfx = pygame.mixer.Sound("assets/sfx/revolver.ogg")
-shotgun_sfx  = pygame.mixer.Sound("assets/sfx/shotgun.ogg")
-minigun_sfx  = pygame.mixer.Sound("assets/sfx/minigun.ogg")
+revolver_sfx = pygame.mixer.Sound(rp('assets','sfx','revolver.ogg'))
+shotgun_sfx  = pygame.mixer.Sound(rp('assets','sfx','shotgun.ogg'))
+minigun_sfx  = pygame.mixer.Sound(rp('assets','sfx','minigun.ogg'))
 
 revolver_sfx.set_volume(0.6)
 shotgun_sfx.set_volume(0.7)
